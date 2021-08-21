@@ -16,7 +16,7 @@ GO111MODULE=on go get github.com/nscuro/ossindex-client
 
 |  Go   | OSS Index REST API |
 | :---: | :----------------: |
-| 1.14+ |         v3         |
+| 1.15+ |         v3         |
 
 ## Usage
 
