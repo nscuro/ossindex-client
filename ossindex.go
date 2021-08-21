@@ -145,32 +145,22 @@ const MaxCoordinatesCount = 128
 
 // GetComponentReports requests vulnerability reports for one or more components.
 //
-// OSS Index enforces a limit of MaxCoordinatesCount coordinates per request.
-// If the given coordinates slice exceeds this limit, Client will batch them
+// OSS Index enforces a limit of 128 coordinates per request.
+// If the given coordinates slice exceeds this limit, Client will chunk them
 // and perform multiple requests.
 func (c Client) GetComponentReports(ctx context.Context, coordinates []string) ([]ComponentReport, error) {
-	componentReports := make([]ComponentReport, 0)
+	reports := make([]ComponentReport, 0)
 
-	for len(componentReports) < len(coordinates) {
-		batchSize := 0
-		for {
-			if batchSize+1 > MaxCoordinatesCount || len(componentReports)+batchSize+1 > len(coordinates) {
-				break
-			}
-			batchSize++
-		}
-
-		batch := coordinates[len(componentReports) : len(componentReports)+batchSize]
-
-		batchComponentReports, err := c.getComponentReportsInternal(ctx, batch)
+	for _, chunk := range chunkCoordinates(coordinates) {
+		chunkReports, err := c.getComponentReportsInternal(ctx, chunk)
 		if err != nil {
 			return nil, err
 		}
 
-		componentReports = append(componentReports, batchComponentReports...)
+		reports = append(reports, chunkReports...)
 	}
 
-	return componentReports, nil
+	return reports, nil
 }
 
 func (c Client) getComponentReportsInternal(ctx context.Context, coordinates []string) ([]ComponentReport, error) {
@@ -209,6 +199,23 @@ func (c Client) getComponentReportsInternal(ctx context.Context, coordinates []s
 	}
 
 	return componentReports, nil
+}
+
+// https://stackoverflow.com/a/35179941
+func chunkCoordinates(coordinates []string) [][]string {
+	var chunks [][]string
+
+	for i := 0; i < len(coordinates); i += MaxCoordinatesCount {
+		j := i + MaxCoordinatesCount
+
+		if j > len(coordinates) {
+			j = len(coordinates)
+		}
+
+		chunks = append(chunks, coordinates[i:j])
+	}
+
+	return chunks
 }
 
 func (c Client) checkResponse(res *http.Response, expectedStatus int) error {

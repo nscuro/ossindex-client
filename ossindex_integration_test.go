@@ -17,7 +17,7 @@ func TestIntegrationGetComponentReports(t *testing.T) {
 
 	coordinates := []string{"pkg:maven/com.fasterxml.jackson.core/jackson-databind@2.9.10.7"}
 
-	reports, err := client.getComponentReportsInternal(context.TODO(), coordinates)
+	reports, err := client.GetComponentReports(context.Background(), coordinates)
 	require.NoError(t, err)
 	require.NotEmpty(t, reports)
 }
