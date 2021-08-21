@@ -19,6 +19,7 @@ const (
 
 type Client struct {
 	httpClient *http.Client
+	cache      Cache
 	userAgent  string
 }
 
@@ -28,6 +29,7 @@ func NewClient(options ...ClientOption) (*Client, error) {
 		httpClient: &http.Client{
 			Timeout: DefaultTimeout,
 		},
+		cache:     &NoOpCache{},
 		userAgent: DefaultUserAgent,
 	}
 
@@ -67,6 +69,18 @@ func WithAuthentication(username, token string) ClientOption {
 	}
 }
 
+// WithCache overrides the default cache.
+func WithCache(cache Cache) ClientOption {
+	return func(c *Client) error {
+		if cache == nil {
+			return fmt.Errorf("cache cannot be nil")
+		}
+
+		c.cache = cache
+		return nil
+	}
+}
+
 // WithTimeout overrides the default timeout.
 func WithTimeout(timeout time.Duration) ClientOption {
 	return func(c *Client) error {
@@ -78,6 +92,10 @@ func WithTimeout(timeout time.Duration) ClientOption {
 // WithUserAgent overrides the default user agent.
 func WithUserAgent(userAgent string) ClientOption {
 	return func(c *Client) error {
+		if userAgent == "" {
+			return fmt.Errorf("user agent cannot be nil")
+		}
+
 		c.userAgent = userAgent
 		return nil
 	}
@@ -151,10 +169,31 @@ const MaxCoordinatesCount = 128
 func (c Client) GetComponentReports(ctx context.Context, coordinates []string) ([]ComponentReport, error) {
 	reports := make([]ComponentReport, 0)
 
-	for _, chunk := range chunkCoordinates(coordinates) {
+	cachedReports, err := c.cache.Get(coordinates)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get cached reports: %w", err)
+	}
+
+	remainingCoordinates := make([]string, 0)
+
+	for _, coordinate := range coordinates {
+		report, cacheHit := cachedReports[coordinate]
+		if cacheHit {
+			reports = append(reports, report)
+		} else {
+			remainingCoordinates = append(remainingCoordinates, coordinate)
+		}
+	}
+
+	for _, chunk := range chunkCoordinates(remainingCoordinates) {
 		chunkReports, err := c.getComponentReportsInternal(ctx, chunk)
 		if err != nil {
 			return nil, err
+		}
+
+		err = c.cache.Add(chunkReports)
+		if err != nil {
+			return nil, fmt.Errorf("failed to add cache entries: %w", err)
 		}
 
 		reports = append(reports, chunkReports...)
