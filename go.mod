@@ -1,6 +1,6 @@
 module github.com/nscuro/ossindex-client
 
-go 1.15
+go 1.19
 
 require (
 	github.com/jarcoal/httpmock v1.0.8
